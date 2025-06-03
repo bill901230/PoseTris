@@ -8,6 +8,7 @@ import mediapipe as mp
 import speech_recognition as sr
 from pose_detect import classifyPose
 import ctypes
+from tetris_net import create_link
 
 ctypes.cdll.LoadLibrary("libasound.so").snd_lib_error_set_handler(
 ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int,
@@ -15,7 +16,18 @@ ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int,
 
 a = argparse.ArgumentParser()
 a.add_argument("--mic", type=int, default=None, help="device index (list & auto if omitted)")
+a.add_argument("--dual", nargs="+", metavar=("mode", "ip"),
+               help="host ︱ peer <host_ip> ︱ 不給 = 單人")
 args = a.parse_args()
+
+if args.dual:
+    mode = args.dual[0]
+    peer_ip = None if mode == "host" else args.dual[1]
+    print(f"[INFO] {mode}模式，對手 IP：{peer_ip if peer_ip else '無'}")
+    recv_q, net_send = create_link(mode, peer_ip)
+else:
+    print("[INFO] 單人模式，無網路連線")
+    recv_q, net_send = None, lambda *_: None 
 
 print("[INFO] 可用錄音裝置：")
 for i, name in enumerate(sr.Microphone.list_microphone_names()):
@@ -39,7 +51,8 @@ colors = [
     (80, 134, 22),
     (180, 34, 22),
     (180, 34, 122),
-    (180, 134, 122)
+    (180, 134, 122),
+    (0, 0, 0) 
 ]
 
 
@@ -122,6 +135,7 @@ class Tetris:
         self.y = 60
         self.zoom = 25
         self.figure = None
+        self.combo3 = 0      
 
         self.select_type = None
         self.height = height
@@ -163,6 +177,7 @@ class Tetris:
                     for j in range(self.width):
                         self.field[i1][j] = self.field[i1 - 1][j]
         self.score += lines ** 2
+        return lines
 
     def go_space(self):
         while not self.intersects():
@@ -181,7 +196,12 @@ class Tetris:
             for j in range(4):
                 if i * 4 + j in self.figure.image():
                     self.field[i + self.figure.y][j + self.figure.x] = self.figure.color
-        self.break_lines()
+        lines = self.break_lines()
+        self.combo3 += lines
+        if self.combo3 >= 1:  
+            occ = [1, 3, 4, 7, 8]
+            self.attack(occ)
+            self.combo3 = 0
         self.new_figure(1)
         self.select_type = None
 
@@ -201,6 +221,48 @@ class Tetris:
         if self.intersects():
             self.figure.rotation = old_rotation
 
+    def attack(self, occ_indices: list[int]):
+        """隨機水平 & 下落檢查的灰色攻擊塊 (九宮格 3×3)"""
+        max_try = 10
+        shape_w = 3          # 九宮格寬度
+        shape_h = 3
+        base_rows = [0,1,2]  # row 0..2 映射到 occ row 0..2
+
+        for _ in range(max_try):
+            ox = random.randint(0, self.width - shape_w)  # 隨機水平起點
+
+            # ---------- 找可落到底的 y ----------
+            y = 0
+            while True:
+                collide = False
+                for idx in occ_indices:
+                    r, c = divmod(idx, 3)
+                    gx = ox + c
+                    gy = y + r
+                    # 超下邊或撞現有方塊就算碰撞
+                    if gy >= self.height or self.field[gy][gx] > 0:
+                        collide = True
+                        break
+                if collide:
+                    y -= 1      # 上一步才是合法
+                    break
+                y += 1
+            # y 可能變成 -1 -> 放不下
+            if y < 0:
+                continue        # 換下一個 ox 再試
+            # ---------- 寫入棋盤 ----------
+            for idx in occ_indices:
+                r, c = divmod(idx, 3)
+                gx = ox + c
+                gy = y + r
+                self.field[gy][gx] = 8 
+            print(f'[ATTACK] 灰色攻擊塊落在 x={ox}, y={y}')
+            return
+
+        print('[ATTACK] 場上擁擠，直接 Game Over')
+        self.state = "gameover"
+
+
 def draw_selection(pygame, screen, types):
     for i in range(game.height):
         for j in range(game.width):
@@ -218,9 +280,6 @@ def draw_selection(pygame, screen, types):
                                     [game.x + game.zoom * (j + game.width + 4*t) + 5,
                                     game.y + game.zoom * (i) + 1,
                                     game.zoom - 2, game.zoom - 2])
-
-    
-
                     
 # select_type = None
 # chosen = False
