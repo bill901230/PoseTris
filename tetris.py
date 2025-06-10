@@ -197,11 +197,28 @@ class Tetris:
         self.combo3 += lines
         # send attack
         if self.combo3 >= 1:  
-            occ = [1, 3, 4, 7, 8]
-            if recv_q:                  # 有開 --dual 時才送
-                net_send({"type": "attack", "occ": occ})
-            else:                       # 單人模式自玩
-                self.get_attack(occ)
+            print(f"[COMBO] 連擊 {self.combo3} 次")
+            occ = None
+            if cam is not None:                         # 只有有相機才抓
+                for _ in range(30):                     # 最多嘗試 30 幀 (~1 秒)
+                    print(f"[ATTACK] 嘗試抓取九宮格…{_}")
+                    frame = cam.capture_array() if isinstance(cam, Picamera2) else cam.read()[1]
+                    rgb   = frame if frame.shape[2]==3 else cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    res   = pose.process(rgb)
+                    if res.pose_landmarks:              # 偵測到骨架
+                        h,w = rgb.shape[:2]
+                        occ = grid_indices_from_landmarks(h, w, res.pose_landmarks.landmark)
+                        if len(occ) > 0:              # 有抓到九宮格
+                            occ = sorted(occ)
+                            print(f"[ATTACK] 抓到九宮格：{occ}")
+                            if recv_q:                  # 有開 --dual 時才送
+                                net_send({"type": "attack", "occ": occ})
+                            else:                       # 單人模式自玩
+                                self.get_attack(occ)
+                            break
+                    time.sleep(0.03)     
+            else:
+                print("[ATTACK] 單人模式無相機，跳過攻擊") 
             self.combo3 = 0
         self.new_figure(1)
         self.select_type = None
