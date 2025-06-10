@@ -1,6 +1,7 @@
 import pygame
 import random
 import math, time, threading, queue, argparse, ctypes
+import numpy as np
 from datetime import datetime
 import cv2
 from picamera2 import Picamera2
@@ -9,6 +10,7 @@ import speech_recognition as sr
 from pose_detect import classifyPose
 import ctypes
 from tetris_net import create_link
+from attack import grid_indices_from_landmarks
 
 ctypes.cdll.LoadLibrary("libasound.so").snd_lib_error_set_handler(
 ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int,
@@ -18,16 +20,11 @@ a = argparse.ArgumentParser()
 a.add_argument("--mic", type=int, default=None, help="device index (list & auto if omitted)")
 a.add_argument("--dual", nargs="+", metavar=("mode", "ip"),
                help="host ︱ peer <host_ip> ︱ 不給 = 單人")
+a.add_argument("--no-cam", action="store_true",
+               help="skip camera init (use black frame)")
 args = a.parse_args()
 
-if args.dual:
-    mode = args.dual[0]
-    peer_ip = None if mode == "host" else args.dual[1]
-    print(f"[INFO] {mode}模式，對手 IP：{peer_ip if peer_ip else '無'}")
-    recv_q, net_send = create_link(mode, peer_ip)
-else:
-    print("[INFO] 單人模式，無網路連線")
-    recv_q, net_send = None, lambda *_: None 
+
 
 print("[INFO] 可用錄音裝置：")
 for i, name in enumerate(sr.Microphone.list_microphone_names()):
@@ -198,9 +195,13 @@ class Tetris:
                     self.field[i + self.figure.y][j + self.figure.x] = self.figure.color
         lines = self.break_lines()
         self.combo3 += lines
+        # send attack
         if self.combo3 >= 1:  
             occ = [1, 3, 4, 7, 8]
-            self.attack(occ)
+            if recv_q:                  # 有開 --dual 時才送
+                net_send({"type": "attack", "occ": occ})
+            else:                       # 單人模式自玩
+                self.get_attack(occ)
             self.combo3 = 0
         self.new_figure(1)
         self.select_type = None
@@ -221,7 +222,7 @@ class Tetris:
         if self.intersects():
             self.figure.rotation = old_rotation
 
-    def attack(self, occ_indices: list[int]):
+    def get_attack(self, occ_indices: list[int]):
         """隨機水平 & 下落檢查的灰色攻擊塊 (九宮格 3×3)"""
         max_try = 10
         shape_w = 3          # 九宮格寬度
@@ -285,6 +286,15 @@ def draw_selection(pygame, screen, types):
 # chosen = False
 
 if __name__ == "__main__":
+
+    if args.dual:
+        mode = args.dual[0]
+        peer_ip = None if mode == "host" else args.dual[1]
+        print(f"[INFO] {mode}模式，對手 IP：{peer_ip if peer_ip else '無'}")
+        recv_q, net_send = create_link(mode, peer_ip)
+    else:
+        print("[INFO] 單人模式，無網路連線")
+        recv_q, net_send = None, lambda *_: None 
     # ──────────── Mediapipe Pose ────────────
     mp_drawing = mp.solutions.drawing_utils
     mp_pose = mp.solutions.pose
@@ -293,9 +303,13 @@ if __name__ == "__main__":
 
     # ──────────── Camera ────────────
     W,H = 640,480
-    cam = Picamera2(); cam.configure(cam.create_video_configuration(main={"size":(W,H),"format":"RGB888"})); cam.start()
-    cmd_q = queue.Queue()
-    threading.Thread(target=voice_thread, args=(cmd_q,args.mic), daemon=True).start()
+    if args.no_cam:
+        cam = None
+        cmd_q = queue.Queue()    # 仍給空 Queue，程式不會阻塞
+    else:
+        cam = Picamera2(); cam.configure(cam.create_video_configuration(main={"size":(W,H),"format":"RGB888"})); cam.start()
+        cmd_q = queue.Queue()
+        threading.Thread(target=voice_thread, args=(cmd_q,args.mic), daemon=True).start()
 
 
     label = 0; t0=0; prev_label = 0; candidate = 0
@@ -327,9 +341,20 @@ if __name__ == "__main__":
     types = random.sample(range(1, len(figures)), 3)
 
     while not done:
+        if recv_q:
+            while not recv_q.empty():
+                m = recv_q.get()
+                if m["type"] == "attack":
+                    game.get_attack(m["occ"])
+                elif m["type"] == "gameover":
+                    game.state = "gameover"
         screen.fill(WHITE)
 
-        rgb = cam.capture_array()
+        if cam is None:
+            frame = np.zeros((H, W, 3), dtype=np.uint8)
+            rgb = frame
+        else:
+            rgb = cam.capture_array()
         results = pose.process(rgb)
         label = 0
         text_label = "Unknown"
