@@ -26,7 +26,7 @@ args = a.parse_args()
 
 
 
-print("[INFO] 可用錄音裝置：")
+# print("[INFO] 可用錄音裝置：")
 for i, name in enumerate(sr.Microphone.list_microphone_names()):
     print(f"  {i} : {name}")
 
@@ -37,7 +37,7 @@ if args.mic is None:
                 args.mic = i; break
         except Exception:
             continue
-    print(f"[INFO] 自動選擇 device_index = {args.mic}")
+    # print(f"[INFO] 自動選擇 device_index = {args.mic}")
 
 
 colors = [
@@ -75,7 +75,14 @@ R_TRIG = {"right", "右"}
 S_TRIG = {"spin", "轉"}
 D_TRIG = {"down", "下"}
 
-def voice_thread(q: queue.Queue, txt_q: queue.Queue,dev_idx):
+def clear_queue(q: queue.Queue):
+    while True:
+        try:
+            q.get_nowait()
+        except queue.Empty:
+            break
+
+def voice_thread(q: queue.Queue, dev_idx):
     rec = sr.Recognizer()
     with sr.Microphone(device_index=dev_idx) as src:
         rec.adjust_for_ambient_noise(src, duration=1.5)
@@ -208,7 +215,8 @@ class Tetris:
             occ = None
             if cam is not None:  
                 i = 0                       # 只有有相機才抓
-                while(True):                     # 最多嘗試 30 幀 (~1 秒)
+                while(True):   
+                    i+=1                  # 最多嘗試 30 幀 (~1 秒)
                     print(f"[ATTACK] 嘗試抓取九宮格…{i}")
                     frame = cam.capture_array() if isinstance(cam, Picamera2) else cam.read()[1]
                     rgb   = frame if frame.shape[2]==3 else cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -218,7 +226,7 @@ class Tetris:
                         occ = grid_indices_from_landmarks(h, w, res.pose_landmarks.landmark)
                         if len(occ) > 0:              # 有抓到九宮格
                             occ = sorted(occ)
-                            print(f"[ATTACK] 抓到九宮格：{occ}")
+                            # print(f"[ATTACK] 抓到九宮格：{occ}")
                             if recv_q:                  # 有開 --dual 時才送
                                 net_send({"type": "attack", "occ": occ})
                             else:                       # 單人模式自玩
@@ -282,10 +290,10 @@ class Tetris:
                 gx = ox + c
                 gy = y + r
                 self.field[gy][gx] = 8 
-            print(f'[ATTACK] 灰色攻擊塊落在 x={ox}, y={y}')
+            # print(f'[ATTACK] 灰色攻擊塊落在 x={ox}, y={y}')
             return
 
-        print('[ATTACK] 場上擁擠，直接 Game Over')
+        # print('[ATTACK] 場上擁擠，直接 Game Over')
         self.state = "gameover"
 
 
@@ -428,7 +436,7 @@ if __name__ == "__main__":
                 start_time = time.time()
             elif time.time() - start_time >= 1.0 and candidate != prev_label:
                 prev_label = candidate
-                print(f"[LABEL] {datetime.now().strftime('%H:%M:%S')} → {candidate}:{figures_label[candidate]}")
+                # print(f"[LABEL] {datetime.now().strftime('%H:%M:%S')} → {candidate}:{figures_label[candidate]}")
                 if candidate != "0" and candidate in types:
                    game.select_type = candidate
 
@@ -494,15 +502,11 @@ if __name__ == "__main__":
                         pressing_down = False
 
             if game.select_type is not None and not cmd_q.empty():
-                print("chosed")
                 cmd = cmd_q.get()
-                txt = txt_q.get() if not txt_q.empty() else ""
-                print(cmd)
+                clear_queue(cmd_q)
                 if cmd=="left":
                     game.go_side(-1)
-                    print("left")
                 elif cmd=="right":
-                    
                     game.go_side(1)
                 elif cmd=="down":
                     game.go_space()
