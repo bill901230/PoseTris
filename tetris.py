@@ -91,6 +91,7 @@ def voice_thread(q: queue.Queue, dev_idx):
             audio = rec.listen(src, phrase_time_limit=1.5)
             try:
                 txt = rec.recognize_google(audio, language="zh-TW").lower()
+                txt_q.put(txt)
                 print("[HEARD]", txt)
                 if any(w in txt for w in L_TRIG):
                     q.put("left")
@@ -350,10 +351,12 @@ if __name__ == "__main__":
     if args.no_cam:
         cam = None
         cmd_q = queue.Queue()    # 仍給空 Queue，程式不會阻塞
+        txt_q = queue.Queue()    # 語音指令 Queue
     else:
         cam = Picamera2(); cam.configure(cam.create_video_configuration(main={"size":(W,H),"format":"BGR888"})); cam.start()
         cmd_q = queue.Queue()
-        threading.Thread(target=voice_thread, args=(cmd_q,args.mic), daemon=True).start()
+        txt_q = queue.Queue()
+        threading.Thread(target=voice_thread, args=(cmd_q,txt_q,args.mic), daemon=True).start()
 
 
     label = 0; t0=0; prev_label = 0; candidate = 0
@@ -547,6 +550,8 @@ if __name__ == "__main__":
         # font = pygame.font.SysFont('Microsoft JhengHei', 25, True, False)
         font1 = pygame.font.SysFont('Calibri', 65, True, False)
         font = pygame.font.Font("./src/static/NotoSansTC-Bold.ttf", 30)
+        font_voice = pygame.font.Font("./src/static/NotoSansTC-Bold.ttf", 65)
+        text_voice = font.render(str(txt), True, BLACK)
         text_combo = font.render(str(game.attack_combo - game.combo3), True, RED)
         text_attack = font.render("再消除      行即可攻擊！", True, BLACK)
         text_game_over = font1.render("Game Over", True, (255, 125, 0))
@@ -554,6 +559,7 @@ if __name__ == "__main__":
 
         screen.blit(text_combo, [180, 20])
         screen.blit(text_attack, [80, 20])
+        screen.blit(text_voice, [720, 750])
         if game.state == "gameover":
             pygame.draw.rect(screen, (0, 0, 0), [0, 0, size[0], size[1]])
             screen.blit(text_game_over, [650, 200])
