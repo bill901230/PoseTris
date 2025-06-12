@@ -505,7 +505,7 @@ if __name__ == "__main__":
             if game.select_type is not None:
                 txt = txt_q.get() if not txt_q.empty() else txt
                 clear_queue(txt_q)
-                
+
             if game.select_type is not None and not cmd_q.empty():
                 cmd = cmd_q.get()
                 clear_queue(cmd_q)
@@ -566,7 +566,7 @@ if __name__ == "__main__":
 
         # voice text
         font_voice = pygame.font.Font("./src/static/NotoSansTC-Bold.ttf", 65)
-        text_voice = font_voice.render(str(txt), True, BLACK)
+        text_voice = font_voice.render(str(txt)+" !", True, BLACK)
 
         # game over text
         font1 = pygame.font.SysFont('Calibri', 65, True, False)
