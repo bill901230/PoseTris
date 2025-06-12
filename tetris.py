@@ -504,6 +504,7 @@ if __name__ == "__main__":
                         pressing_down = False
 
             if game.select_type is not None and not cmd_q.empty():
+                txt = txt_q.get() if not txt_q.empty() else ""
                 cmd = cmd_q.get()
                 clear_queue(cmd_q)
                 if cmd=="left":
