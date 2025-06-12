@@ -82,7 +82,7 @@ def clear_queue(q: queue.Queue):
         except queue.Empty:
             break
 
-def voice_thread(q: queue.Queue, dev_idx):
+def voice_thread(q: queue.Queue, txt_q: queue.Queue, dev_idx):
     rec = sr.Recognizer()
     with sr.Microphone(device_index=dev_idx) as src:
         rec.adjust_for_ambient_noise(src, duration=1.5)
@@ -232,10 +232,12 @@ class Tetris:
                             else:                       # 單人模式自玩
                                 self.get_attack(occ)
                             break
-                    time.sleep(0.03)     
+                    time.sleep(0.03)
+            
             else:
                 print("[ATTACK] 單人模式無相機，跳過攻擊") 
             self.combo3 = 0
+            self.attacking = False
         self.new_figure(1)
         self.select_type = None
 
@@ -555,9 +557,9 @@ if __name__ == "__main__":
         font = pygame.font.Font("./src/static/NotoSansTC-Bold.ttf", 30)
         text_combo = font.render(str(game.attack_combo - game.combo3), True, RED)
         if game.attacking:
-            text_attack = font.render("再消除      行即可攻擊！", True, BLACK)
-        else:
             text_attack = font.render("攻擊 ! ", True, BLACK)
+        else:
+            text_attack = font.render("再消除      行即可攻擊！", True, BLACK)
 
         # voice text
         font_voice = pygame.font.Font("./src/static/NotoSansTC-Bold.ttf", 65)
