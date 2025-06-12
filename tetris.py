@@ -133,7 +133,7 @@ class Tetris:
         self.zoom = 25 # rect size
         self.figure = None
         self.combo3 = 0
-        self.attack_combo = 3
+        self.attack_combo = 2
 
         self.select_type = None
         self.height = height
@@ -203,9 +203,10 @@ class Tetris:
         if self.combo3 >= self.attack_combo:  
             print(f"[COMBO] 連擊 {self.combo3} 次")
             occ = None
-            if cam is not None:                         # 只有有相機才抓
-                for _ in range(30):                     # 最多嘗試 30 幀 (~1 秒)
-                    print(f"[ATTACK] 嘗試抓取九宮格…{_}")
+            if cam is not None:  
+                i = 0                       # 只有有相機才抓
+                while(True):                     # 最多嘗試 30 幀 (~1 秒)
+                    print(f"[ATTACK] 嘗試抓取九宮格…{i}")
                     frame = cam.capture_array() if isinstance(cam, Picamera2) else cam.read()[1]
                     rgb   = frame if frame.shape[2]==3 else cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
                     res   = pose.process(rgb)
@@ -342,7 +343,7 @@ if __name__ == "__main__":
         cam = None
         cmd_q = queue.Queue()    # 仍給空 Queue，程式不會阻塞
     else:
-        cam = Picamera2(); cam.configure(cam.create_video_configuration(main={"size":(W,H),"format":"RGB888"})); cam.start()
+        cam = Picamera2(); cam.configure(cam.create_video_configuration(main={"size":(W,H),"format":"BGR888"})); cam.start()
         cmd_q = queue.Queue()
         threading.Thread(target=voice_thread, args=(cmd_q,args.mic), daemon=True).start()
 
@@ -429,14 +430,15 @@ if __name__ == "__main__":
         # overlay label
         cv2.putText(rgb, figures_label[label], (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
-        # surface = pygame.surfarray.make_surface(np.rot90(rgb))
-        surface = pygame.surfarray.make_surface(rgb)
+        surface = pygame.surfarray.make_surface(np.rot90(rgb))
+        # surface = pygame.surfarray.make_surface(rgb)
         screen.blit(surface, (570, 250))
         # cv2.imshow("Live", rgb)
 
         if cv2.waitKey(1)&0xFF==ord('q'):
             break
         if game.select_type is None:
+            draw_grid(pygame, screen, game)
             draw_selection(pygame, screen, types)
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:

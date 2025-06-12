@@ -106,10 +106,10 @@ def classifyPose(landmarks):
     # L
     if near(left_shoulder_angle, 0) and near(right_shoulder_angle, 90) and near(left_elbow_angle, 180) and near(right_elbow_angle, 180):
         if near(left_knee_angle, 180) and near(right_knee_angle, 180):
-            label = 5
+            label = 4
     if near(left_shoulder_angle, 90) and near(right_shoulder_angle, 0) and near(left_elbow_angle, 180) and near(right_elbow_angle, 180):
         if near(left_knee_angle, 180) and near(right_knee_angle, 180):
-            label = 4
+            label = 5
 
     # T
     if near(left_shoulder_angle, 90) and near(right_shoulder_angle, 90) and near(left_elbow_angle, 180) and near(right_elbow_angle, 180):
@@ -118,9 +118,9 @@ def classifyPose(landmarks):
 
     # S
     if near(left_shoulder_angle, 90) and near(left_elbow_angle, 180) and near(left_knee_angle, 90):
-            label = 2
-    if near(right_shoulder_angle, 90) and near(right_elbow_angle, 180) and near(right_knee_angle, 90):
             label = 3
+    if near(right_shoulder_angle, 90) and near(right_elbow_angle, 180) and near(right_knee_angle, 90):
+            label = 2
 
     # O
     if d1 < thresh and d2 < thresh and d3 < thresh and d4 < thresh and d5 < thresh and d6 < thresh:
