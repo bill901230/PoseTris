@@ -135,6 +135,7 @@ class Tetris:
         self.figure = None
         self.combo3 = 0
         self.attack_combo = 2
+        self.attacking = False
 
         self.select_type = None
         self.height = height
@@ -201,7 +202,8 @@ class Tetris:
             print(f"[COMBO] 連擊 {self.combo3} 次，再加 {self.attack_combo - self.combo3} 行即可攻擊！")
 
         # send attack
-        if self.combo3 >= self.attack_combo:  
+        if self.combo3 >= self.attack_combo:
+            self.attacking = True
             print(f"[COMBO] 連擊 {self.combo3} 次")
             occ = None
             if cam is not None:  
@@ -386,6 +388,7 @@ if __name__ == "__main__":
     types = random.sample(range(1, len(figures)), 3)
 
     while not done:
+        txt = ""
         if recv_q:
             while not recv_q.empty():
                 m = recv_q.get()
@@ -544,12 +547,20 @@ if __name__ == "__main__":
                             
             
         # font = pygame.font.SysFont('Microsoft JhengHei', 25, True, False)
-        font1 = pygame.font.SysFont('Calibri', 65, True, False)
+        # attack text
         font = pygame.font.Font("./src/static/NotoSansTC-Bold.ttf", 30)
-        font_voice = pygame.font.Font("./src/static/NotoSansTC-Bold.ttf", 65)
-        text_voice = font.render(str(txt), True, BLACK)
         text_combo = font.render(str(game.attack_combo - game.combo3), True, RED)
-        text_attack = font.render("再消除      行即可攻擊！", True, BLACK)
+        if game.attacking:
+            text_attack = font.render("再消除      行即可攻擊！", True, BLACK)
+        else:
+            text_attack = font.render("攻擊 ! ", True, BLACK)
+
+        # voice text
+        font_voice = pygame.font.Font("./src/static/NotoSansTC-Bold.ttf", 65)
+        text_voice = font_voice.render(str(txt), True, BLACK)
+
+        # game over text
+        font1 = pygame.font.SysFont('Calibri', 65, True, False)
         text_game_over = font1.render("Game Over", True, (255, 125, 0))
         text_game_over1 = font1.render("Press ESC", True, (255, 215, 0))
 
