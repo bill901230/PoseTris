@@ -4,40 +4,40 @@ import math, time, threading, queue, argparse, ctypes
 import numpy as np
 from datetime import datetime
 import cv2
-# from picamera2 import Picamera2
-# import mediapipe as mp
-# import speech_recognition as sr
-# from pose_detect import classifyPose
+from picamera2 import Picamera2
+import mediapipe as mp
+import speech_recognition as sr
+from pose_detect import classifyPose
 import ctypes
-# from tetris_net import create_link
-# from attack import grid_indices_from_landmarks
+from tetris_net import create_link
+from attack import grid_indices_from_landmarks
 
-# ctypes.cdll.LoadLibrary("libasound.so").snd_lib_error_set_handler(
-# ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int,
-#                 ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)(lambda *_: None))
+ctypes.cdll.LoadLibrary("libasound.so").snd_lib_error_set_handler(
+ctypes.CFUNCTYPE(None, ctypes.c_char_p, ctypes.c_int,
+                ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p)(lambda *_: None))
 
-# a = argparse.ArgumentParser()
-# a.add_argument("--mic", type=int, default=None, help="device index (list & auto if omitted)")
-# a.add_argument("--dual", nargs="+", metavar=("mode", "ip"),
-#                help="host ︱ peer <host_ip> ︱ 不給 = 單人")
-# a.add_argument("--no-cam", action="store_true",
-#                help="skip camera init (use black frame)")
-# args = a.parse_args()
+a = argparse.ArgumentParser()
+a.add_argument("--mic", type=int, default=None, help="device index (list & auto if omitted)")
+a.add_argument("--dual", nargs="+", metavar=("mode", "ip"),
+               help="host ︱ peer <host_ip> ︱ 不給 = 單人")
+a.add_argument("--no-cam", action="store_true",
+               help="skip camera init (use black frame)")
+args = a.parse_args()
 
 
 
-# print("[INFO] 可用錄音裝置：")
-# for i, name in enumerate(sr.Microphone.list_microphone_names()):
-#     print(f"  {i} : {name}")
+print("[INFO] 可用錄音裝置：")
+for i, name in enumerate(sr.Microphone.list_microphone_names()):
+    print(f"  {i} : {name}")
 
-# if args.mic is None:
-#     for i, name in enumerate(sr.Microphone.list_microphone_names()):
-#         try:
-#             with sr.Microphone(device_index=i) as _:
-#                 args.mic = i; break
-#         except Exception:
-#             continue
-#     print(f"[INFO] 自動選擇 device_index = {args.mic}")
+if args.mic is None:
+    for i, name in enumerate(sr.Microphone.list_microphone_names()):
+        try:
+            with sr.Microphone(device_index=i) as _:
+                args.mic = i; break
+        except Exception:
+            continue
+    print(f"[INFO] 自動選擇 device_index = {args.mic}")
 
 
 colors = [
@@ -75,30 +75,30 @@ R_TRIG = {"right", "右"}
 S_TRIG = {"spin", "轉"}
 D_TRIG = {"down", "下"}
 
-# def voice_thread(q: queue.Queue, dev_idx):
-#     rec = sr.Recognizer()
-#     with sr.Microphone(device_index=dev_idx) as src:
-#         rec.adjust_for_ambient_noise(src, duration=1.5)
-#         print("[INFO] Mic calibrated, start listening…")
-#         while True:
-#             audio = rec.listen(src, phrase_time_limit=1.5)
-#             try:
-#                 txt = rec.recognize_google(audio, language="zh-TW").lower()
-#                 print("[HEARD]", txt)
-#                 if any(w in txt for w in L_TRIG):
-#                     q.put("left")
-#                 elif any(w in txt for w in R_TRIG):
-#                     q.put("right")
-#                 elif any(w in txt for w in S_TRIG):
-#                     q.put("rotate")
-#                 elif any(w in txt for w in D_TRIG):
-#                     q.put("down")
+def voice_thread(q: queue.Queue, dev_idx):
+    rec = sr.Recognizer()
+    with sr.Microphone(device_index=dev_idx) as src:
+        rec.adjust_for_ambient_noise(src, duration=1.5)
+        print("[INFO] Mic calibrated, start listening…")
+        while True:
+            audio = rec.listen(src, phrase_time_limit=1.5)
+            try:
+                txt = rec.recognize_google(audio, language="zh-TW").lower()
+                print("[HEARD]", txt)
+                if any(w in txt for w in L_TRIG):
+                    q.put("left")
+                elif any(w in txt for w in R_TRIG):
+                    q.put("right")
+                elif any(w in txt for w in S_TRIG):
+                    q.put("rotate")
+                elif any(w in txt for w in D_TRIG):
+                    q.put("down")
                     
-#             except sr.UnknownValueError:
-#                 pass
-#             #     print("[HEARD] <unrecognized>")
-#             except sr.RequestError as e:
-#                 print("[AUDIO]", e)
+            except sr.UnknownValueError:
+                pass
+            #     print("[HEARD] <unrecognized>")
+            except sr.RequestError as e:
+                print("[AUDIO]", e)
 
 # Block class
 class Figure:
@@ -203,26 +203,26 @@ class Tetris:
         if self.combo3 >= self.attack_combo:  
             print(f"[COMBO] 連擊 {self.combo3} 次")
             occ = None
-            # if cam is not None:                         # 只有有相機才抓
-            #     for _ in range(30):                     # 最多嘗試 30 幀 (~1 秒)
-            #         print(f"[ATTACK] 嘗試抓取九宮格…{_}")
-            #         frame = cam.capture_array() if isinstance(cam, Picamera2) else cam.read()[1]
-            #         rgb   = frame if frame.shape[2]==3 else cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-            #         res   = pose.process(rgb)
-            #         if res.pose_landmarks:              # 偵測到骨架
-            #             h,w = rgb.shape[:2]
-            #             occ = grid_indices_from_landmarks(h, w, res.pose_landmarks.landmark)
-            #             if len(occ) > 0:              # 有抓到九宮格
-            #                 occ = sorted(occ)
-            #                 print(f"[ATTACK] 抓到九宮格：{occ}")
-            #                 if recv_q:                  # 有開 --dual 時才送
-            #                     net_send({"type": "attack", "occ": occ})
-            #                 else:                       # 單人模式自玩
-            #                     self.get_attack(occ)
-            #                 break
-            #         time.sleep(0.03)     
-            # else:
-            #     print("[ATTACK] 單人模式無相機，跳過攻擊") 
+            if cam is not None:                         # 只有有相機才抓
+                for _ in range(30):                     # 最多嘗試 30 幀 (~1 秒)
+                    print(f"[ATTACK] 嘗試抓取九宮格…{_}")
+                    frame = cam.capture_array() if isinstance(cam, Picamera2) else cam.read()[1]
+                    rgb   = frame if frame.shape[2]==3 else cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    res   = pose.process(rgb)
+                    if res.pose_landmarks:              # 偵測到骨架
+                        h,w = rgb.shape[:2]
+                        occ = grid_indices_from_landmarks(h, w, res.pose_landmarks.landmark)
+                        if len(occ) > 0:              # 有抓到九宮格
+                            occ = sorted(occ)
+                            print(f"[ATTACK] 抓到九宮格：{occ}")
+                            if recv_q:                  # 有開 --dual 時才送
+                                net_send({"type": "attack", "occ": occ})
+                            else:                       # 單人模式自玩
+                                self.get_attack(occ)
+                            break
+                    time.sleep(0.03)     
+            else:
+                print("[ATTACK] 單人模式無相機，跳過攻擊") 
             self.combo3 = 0
         self.new_figure(1)
         self.select_type = None
@@ -243,46 +243,46 @@ class Tetris:
         if self.intersects():
             self.figure.rotation = old_rotation
 
-    # def get_attack(self, occ_indices: list[int]):
-    #     """隨機水平 & 下落檢查的灰色攻擊塊 (九宮格 3×3)"""
-    #     max_try = 10
-    #     shape_w = 3          # 九宮格寬度
-    #     shape_h = 3
-    #     base_rows = [0,1,2]  # row 0..2 映射到 occ row 0..2
+    def get_attack(self, occ_indices: list[int]):
+        """隨機水平 & 下落檢查的灰色攻擊塊 (九宮格 3×3)"""
+        max_try = 10
+        shape_w = 3          # 九宮格寬度
+        shape_h = 3
+        base_rows = [0,1,2]  # row 0..2 映射到 occ row 0..2
 
-    #     for _ in range(max_try):
-    #         ox = random.randint(0, self.width - shape_w)  # 隨機水平起點
+        for _ in range(max_try):
+            ox = random.randint(0, self.width - shape_w)  # 隨機水平起點
 
-    #         # ---------- 找可落到底的 y ----------
-    #         y = 0
-    #         while True:
-    #             collide = False
-    #             for idx in occ_indices:
-    #                 r, c = divmod(idx, 3)
-    #                 gx = ox + c
-    #                 gy = y + r
-    #                 # 超下邊或撞現有方塊就算碰撞
-    #                 if gy >= self.height or self.field[gy][gx] > 0:
-    #                     collide = True
-    #                     break
-    #             if collide:
-    #                 y -= 1      # 上一步才是合法
-    #                 break
-    #             y += 1
-    #         # y 可能變成 -1 -> 放不下
-    #         if y < 0:
-    #             continue        # 換下一個 ox 再試
-    #         # ---------- 寫入棋盤 ----------
-    #         for idx in occ_indices:
-    #             r, c = divmod(idx, 3)
-    #             gx = ox + c
-    #             gy = y + r
-    #             self.field[gy][gx] = 8 
-    #         print(f'[ATTACK] 灰色攻擊塊落在 x={ox}, y={y}')
-    #         return
+            # ---------- 找可落到底的 y ----------
+            y = 0
+            while True:
+                collide = False
+                for idx in occ_indices:
+                    r, c = divmod(idx, 3)
+                    gx = ox + c
+                    gy = y + r
+                    # 超下邊或撞現有方塊就算碰撞
+                    if gy >= self.height or self.field[gy][gx] > 0:
+                        collide = True
+                        break
+                if collide:
+                    y -= 1      # 上一步才是合法
+                    break
+                y += 1
+            # y 可能變成 -1 -> 放不下
+            if y < 0:
+                continue        # 換下一個 ox 再試
+            # ---------- 寫入棋盤 ----------
+            for idx in occ_indices:
+                r, c = divmod(idx, 3)
+                gx = ox + c
+                gy = y + r
+                self.field[gy][gx] = 8 
+            print(f'[ATTACK] 灰色攻擊塊落在 x={ox}, y={y}')
+            return
 
-    #     print('[ATTACK] 場上擁擠，直接 Game Over')
-    #     self.state = "gameover"
+        print('[ATTACK] 場上擁擠，直接 Game Over')
+        self.state = "gameover"
 
 def draw_grid(pygame, screen, game):
     shift = 20
@@ -297,12 +297,7 @@ def draw_grid(pygame, screen, game):
                                 [game.x + game.zoom * j + 1, game.y + game.zoom * i + 1, game.zoom - 2, game.zoom - 1])
                 
 def draw_selection(pygame, screen, types):
-    # window = pygame.image.load("src/window.png").convert_alpha()
-    # window = pygame.transform.scale(window, (300, 700))
-    # screen.blit(window, [100,100])
-    
-    # draw_grid(pygame, screen, game)
-    # (600, 250)
+
     pygame.draw.rect(screen, WHITE, [720, 30, 350, 190], border_radius=25)
     pygame.draw.rect(screen, (50, 50, 50), [720, 30, 350, 190], border_radius=25, width=1)
     pygame.draw.line(screen, (50, 50, 50), [720, 80], [1070, 80], width=1)
@@ -326,29 +321,29 @@ def draw_selection(pygame, screen, types):
 
 if __name__ == "__main__":
 
-    # if args.dual:
-    #     mode = args.dual[0]
-    #     peer_ip = None if mode == "host" else args.dual[1]
-    #     print(f"[INFO] {mode}模式，對手 IP：{peer_ip if peer_ip else '無'}")
-    #     recv_q, net_send = create_link(mode, peer_ip)
-    # else:
-    #     print("[INFO] 單人模式，無網路連線")
-    #     recv_q, net_send = None, lambda *_: None 
-    # # ──────────── Mediapipe Pose ────────────
-    # mp_drawing = mp.solutions.drawing_utils
-    # mp_pose = mp.solutions.pose
-    # pose = mp_pose.Pose(static_image_mode=False, model_complexity=0,
-    #                     min_detection_confidence=0.5, min_tracking_confidence=0.5)
+    if args.dual:
+        mode = args.dual[0]
+        peer_ip = None if mode == "host" else args.dual[1]
+        print(f"[INFO] {mode}模式，對手 IP：{peer_ip if peer_ip else '無'}")
+        recv_q, net_send = create_link(mode, peer_ip)
+    else:
+        print("[INFO] 單人模式，無網路連線")
+        recv_q, net_send = None, lambda *_: None 
+    # ──────────── Mediapipe Pose ────────────
+    mp_drawing = mp.solutions.drawing_utils
+    mp_pose = mp.solutions.pose
+    pose = mp_pose.Pose(static_image_mode=False, model_complexity=0,
+                        min_detection_confidence=0.5, min_tracking_confidence=0.5)
 
     # ──────────── Camera ────────────
     W,H = 640,480
-    # if args.no_cam:
-    #     cam = None
-    #     cmd_q = queue.Queue()    # 仍給空 Queue，程式不會阻塞
-    # else:
-    #     cam = Picamera2(); cam.configure(cam.create_video_configuration(main={"size":(W,H),"format":"RGB888"})); cam.start()
-    #     cmd_q = queue.Queue()
-    #     threading.Thread(target=voice_thread, args=(cmd_q,args.mic), daemon=True).start()
+    if args.no_cam:
+        cam = None
+        cmd_q = queue.Queue()    # 仍給空 Queue，程式不會阻塞
+    else:
+        cam = Picamera2(); cam.configure(cam.create_video_configuration(main={"size":(W,H),"format":"RGB888"})); cam.start()
+        cmd_q = queue.Queue()
+        threading.Thread(target=voice_thread, args=(cmd_q,args.mic), daemon=True).start()
 
 
     label = 0; t0=0; prev_label = 0; candidate = 0
@@ -385,38 +380,39 @@ if __name__ == "__main__":
     types = random.sample(range(1, len(figures)), 3)
 
     while not done:
-        # if recv_q:
-        #     while not recv_q.empty():
-        #         m = recv_q.get()
-        #         if m["type"] == "attack":
-        #             game.get_attack(m["occ"])
-        #         elif m["type"] == "gameover":
-        #             game.state = "gameover"
-        # screen.fill(WHITE)
+        if recv_q:
+            while not recv_q.empty():
+                m = recv_q.get()
+                if m["type"] == "attack":
+                    game.get_attack(m["occ"])
+                elif m["type"] == "gameover":
+                    game.state = "gameover"
+        screen.fill(WHITE)
+
         screen.blit(bg_image, [0,0])
         screen.blit(bright_layer, [0,0])
 
-        # if cam is None:
-        #     frame = np.zeros((H, W, 3), dtype=np.uint8)
-        #     rgb = frame
-        # else:
-        #     rgb = cam.capture_array()
-        # results = pose.process(rgb)
+        if cam is None:
+            frame = np.zeros((H, W, 3), dtype=np.uint8)
+            rgb = frame
+        else:
+            rgb = cam.capture_array()
+        results = pose.process(rgb)
         label = 0
         text_label = "Unknown"
-        # if results.pose_landmarks:
-        #     # draw skeleton
-        #     mp_drawing.draw_landmarks(
-        #         rgb, results.pose_landmarks, mp_pose.POSE_CONNECTIONS
-        #     )
-        #     # collect landmarks in pixel coords
-        #     h, w = rgb.shape[:2]
-        #     lm = [
-        #         (int(l.x * w), int(l.y * h), l.visibility)
-        #         for l in results.pose_landmarks.landmark
-        #     ]
-        #     label = classifyPose(lm)
-        #     text_label = figures_label[label]
+        if results.pose_landmarks:
+            # draw skeleton
+            mp_drawing.draw_landmarks(
+                rgb, results.pose_landmarks, mp_pose.POSE_CONNECTIONS
+            )
+            # collect landmarks in pixel coords
+            h, w = rgb.shape[:2]
+            lm = [
+                (int(l.x * w), int(l.y * h), l.visibility)
+                for l in results.pose_landmarks.landmark
+            ]
+            label = classifyPose(lm)
+            text_label = figures_label[label]
         if label is not 0 and  game.select_type is None:
             if label != candidate:
                 candidate = label
@@ -432,9 +428,9 @@ if __name__ == "__main__":
         screen.blit(surface, (570, 250))
 
         # overlay label
-        # cv2.putText(rgb, figures_label[label], (10, 30),
-        #             cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
-        # cv2.imshow("Live", rgb)
+        cv2.putText(rgb, figures_label[label], (10, 30),
+                    cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
+        cv2.imshow("Live", rgb)
 
         if cv2.waitKey(1)&0xFF==ord('q'):
             break
@@ -488,20 +484,20 @@ if __name__ == "__main__":
                     if event.key == pygame.K_DOWN:
                         pressing_down = False
 
-            # if game.select_type is not None and not cmd_q.empty():
-            #     print("chosed")
-            #     cmd = cmd_q.get()
-            #     print(cmd)
-            #     if cmd=="left":
-            #         game.go_side(-1)
-            #         print("left")
-            #     elif cmd=="right":
+            if game.select_type is not None and not cmd_q.empty():
+                print("chosed")
+                cmd = cmd_q.get()
+                print(cmd)
+                if cmd=="left":
+                    game.go_side(-1)
+                    print("left")
+                elif cmd=="right":
                     
-            #         game.go_side(1)
-            #     elif cmd=="down":
-            #         game.go_space()
-            #     elif cmd=="rotate":
-            #         game.rotate()
+                    game.go_side(1)
+                elif cmd=="down":
+                    game.go_space()
+                elif cmd=="rotate":
+                    game.rotate()
 
             # Draw grid field
             draw_grid(pygame, screen, game)

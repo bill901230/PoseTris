@@ -122,17 +122,18 @@ class Figure:
 
 class Tetris:
     def __init__(self, height, width):
-        self.level = 2
+        self.level = 0.7
         self.score = 0
         self.state = "start"
         self.field = []
         self.height = 0
         self.width = 0
         self.x = 100
-        self.y = 60
-        self.zoom = 25
+        self.y = 100
+        self.zoom = 25 # rect size
         self.figure = None
-        self.combo3 = 0      
+        self.combo3 = 0
+        self.attack_combo = 3
 
         self.select_type = None
         self.height = height
@@ -140,9 +141,9 @@ class Tetris:
         self.field = []
         self.score = 0
         self.state = "start"
-        for i in range(height):
+        for _ in range(height):
             new_line = []
-            for j in range(width):
+            for _ in range(width):
                 new_line.append(0)
             self.field.append(new_line)
 
@@ -195,8 +196,11 @@ class Tetris:
                     self.field[i + self.figure.y][j + self.figure.x] = self.figure.color
         lines = self.break_lines()
         self.combo3 += lines
+        if lines > 0:
+            print(f"[COMBO] 連擊 {self.combo3} 次，再加 {self.attack_combo - self.combo3} 行即可攻擊！")
+
         # send attack
-        if self.combo3 >= 1:  
+        if self.combo3 >= self.attack_combo:  
             print(f"[COMBO] 連擊 {self.combo3} 次")
             occ = None
             if cam is not None:                         # 只有有相機才抓
@@ -281,13 +285,27 @@ class Tetris:
         self.state = "gameover"
 
 
-def draw_selection(pygame, screen, types):
+def draw_grid(pygame, screen, game):
+    shift = 20
+    pygame.draw.rect(screen, WHITE, [game.x-shift, game.y-shift, game.zoom*game.width+shift*2, game.zoom*game.height+shift*2], border_radius=25)
+    pygame.draw.rect(screen, (50, 50, 50), [game.x-shift, game.y-shift, game.zoom*game.width+shift*2, game.zoom*game.height+shift*2], border_radius=25, width=10)
+
     for i in range(game.height):
         for j in range(game.width):
             pygame.draw.rect(screen, GRAY, [game.x + game.zoom * j, game.y + game.zoom * i, game.zoom, game.zoom], 1)
             if game.field[i][j] > 0:
                 pygame.draw.rect(screen, colors[game.field[i][j]],
                                 [game.x + game.zoom * j + 1, game.y + game.zoom * i + 1, game.zoom - 2, game.zoom - 1])
+                
+def draw_selection(pygame, screen, types):
+
+    pygame.draw.rect(screen, WHITE, [720, 30, 350, 190], border_radius=25)
+    pygame.draw.rect(screen, (50, 50, 50), [720, 30, 350, 190], border_radius=25, width=1)
+    pygame.draw.line(screen, (50, 50, 50), [720, 80], [1070, 80], width=1)
+    font = pygame.font.SysFont('Calibri', 40, True, False)
+    text = font.render("Pose It !", True, (50, 50, 50))
+    screen.blit(text, [830, 40])
+
     for t in range(len(types)):
         type = types[t]
         for i in range(4):
@@ -295,7 +313,7 @@ def draw_selection(pygame, screen, types):
                 p = i * 4 + j
                 if p in figures[type][0]:
                     pygame.draw.rect(screen, colors[type],
-                                    [game.x + game.zoom * (j + game.width + 4*t) + 5,
+                                    [game.x + game.zoom * (j + game.width + 4*t) + 400,
                                     game.y + game.zoom * (i) + 1,
                                     game.zoom - 2, game.zoom - 2])
                     
@@ -336,11 +354,17 @@ if __name__ == "__main__":
 
     # Define some colorsx
     BLACK = (0, 0, 0)
+    RED = (255, 0, 0)
     WHITE = (255, 255, 255)
     GRAY = (128, 128, 128)
 
-    size = (1200, 1500)
+    size = (1500, 900)
     screen = pygame.display.set_mode(size)
+    bg_image = pygame.image.load("src/background.png").convert_alpha()
+    bg_image = pygame.transform.scale(bg_image, (1500, 900))
+    bright_layer = pygame.Surface(bg_image.get_size()).convert_alpha()
+    bright_layer.fill((255, 255, 255, 60))
+    bg_image.set_alpha(80)
 
     pygame.display.set_caption("Tetris")
 
@@ -366,6 +390,9 @@ if __name__ == "__main__":
                 elif m["type"] == "gameover":
                     game.state = "gameover"
         screen.fill(WHITE)
+
+        screen.blit(bg_image, [0,0])
+        screen.blit(bright_layer, [0,0])
 
         if cam is None:
             frame = np.zeros((H, W, 3), dtype=np.uint8)
@@ -402,7 +429,10 @@ if __name__ == "__main__":
         # overlay label
         cv2.putText(rgb, figures_label[label], (10, 30),
                     cv2.FONT_HERSHEY_SIMPLEX, 1, (0,255,0), 2)
-        cv2.imshow("Live", rgb)
+        # surface = pygame.surfarray.make_surface(np.rot90(rgb))
+        surface = pygame.surfarray.make_surface(rgb)
+        screen.blit(surface, (570, 250))
+        # cv2.imshow("Live", rgb)
 
         if cv2.waitKey(1)&0xFF==ord('q'):
             break
@@ -471,12 +501,7 @@ if __name__ == "__main__":
                     game.rotate()
 
             # Draw grid field
-            for i in range(game.height):
-                for j in range(game.width):
-                    pygame.draw.rect(screen, GRAY, [game.x + game.zoom * j, game.y + game.zoom * i, game.zoom, game.zoom], 1)
-                    if game.field[i][j] > 0:
-                        pygame.draw.rect(screen, colors[game.field[i][j]],
-                                        [game.x + game.zoom * j + 1, game.y + game.zoom * i + 1, game.zoom - 2, game.zoom - 1])
+            draw_grid(pygame, screen, game)
 
             if game.figure is not None:
                 shadow_y = game.figure.y
@@ -512,16 +537,20 @@ if __name__ == "__main__":
                                             game.zoom - 2, game.zoom - 2])
                             
             
-        font = pygame.font.SysFont('Calibri', 25, True, False)
+        # font = pygame.font.SysFont('Microsoft JhengHei', 25, True, False)
         font1 = pygame.font.SysFont('Calibri', 65, True, False)
-        text = font.render("Score: " + str(game.score), True, BLACK)
+        font = pygame.font.Font("./src/static/NotoSansTC-Bold.ttf", 30)
+        text_combo = font.render(str(game.attack_combo - game.combo3), True, RED)
+        text_attack = font.render("再消除      行即可攻擊！", True, BLACK)
         text_game_over = font1.render("Game Over", True, (255, 125, 0))
         text_game_over1 = font1.render("Press ESC", True, (255, 215, 0))
 
-        screen.blit(text, [0, 0])
+        screen.blit(text_combo, [180, 20])
+        screen.blit(text_attack, [80, 20])
         if game.state == "gameover":
-            screen.blit(text_game_over, [20, 200])
-            screen.blit(text_game_over1, [25, 265])
+            pygame.draw.rect(screen, (0, 0, 0), [0, 0, size[0], size[1]])
+            screen.blit(text_game_over, [650, 200])
+            screen.blit(text_game_over1, [650, 265])
 
         pygame.display.flip()
         clock.tick(fps)
