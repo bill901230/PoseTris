@@ -396,9 +396,8 @@ if __name__ == "__main__":
     pressing_down = False
 
     types = random.sample(range(1, len(figures)), 3)
-
+    txt = ""
     while not done:
-        txt = ""
         if recv_q:
             while not recv_q.empty():
                 m = recv_q.get()
@@ -503,8 +502,11 @@ if __name__ == "__main__":
                     if event.key == pygame.K_DOWN:
                         pressing_down = False
 
+            if game.select_type is not None:
+                txt = txt_q.get() if not txt_q.empty() else txt
+                clear_queue(txt_q)
+                
             if game.select_type is not None and not cmd_q.empty():
-                txt = txt_q.get() if not txt_q.empty() else ""
                 cmd = cmd_q.get()
                 clear_queue(cmd_q)
                 if cmd=="left":
